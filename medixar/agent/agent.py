@@ -5,12 +5,12 @@ Define the Agent class.
 """
 
 from typing import Dict, List, Optional
-from tools.config import Tool
 
 import torch
 from transformers import pipeline
 
 from medixar.agent.utils import load_prompts_from_file
+from medixar.tools.config import Tool
 
 
 class Agent:
@@ -18,7 +18,7 @@ class Agent:
         self,
         model: str = "meta-llama/Llama-3.2-1B-Instruct",
         tools: Dict[str, Tool] = {},
-        system_prompts_file: str = "system_prompts.txt",
+        system_prompts_file: str = "medixar/prompts/system_prompts.txt",
         system_prompt_type: str = "MEDICAL_ASSISTANT",
         device: str = "auto",
         torch_dtype: torch.dtype = torch.float16,
@@ -62,7 +62,7 @@ class Agent:
             temperature=temperature,
             top_p=top_p,
         )
-        response = outputs[0]["generated_text"][-1]
+        response = outputs[0]["generated_text"][-1]['content']
         self.messages.append({"role": "assistant", "content": response})
         return response
 
