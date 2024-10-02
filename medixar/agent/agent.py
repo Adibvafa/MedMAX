@@ -10,7 +10,7 @@ from tools.config import Tool
 import torch
 from transformers import pipeline
 
-from agent.utils import load_prompts_from_file
+from medixar.agent.utils import load_prompts_from_file
 
 
 class Agent:
