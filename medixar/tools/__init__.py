@@ -1,1 +1,1 @@
-from .config import Tool
+from .tools import Tool, WebSearchTool
