@@ -1,0 +1,8 @@
+{
+    "web_search": {
+        "description": "Search the web for information.",
+        "prompt": "For web search, provide a clear and concise search query as string. Return `<tool> web_search(your_search_query) </tool>` to call the tool. Expected return is a string.",
+        "input_type": "str",
+        "return_type": "str"
+    }
+}
