@@ -75,7 +75,7 @@ class WebSearchTool(Tool):
         """
         Setup the API for the tool.
         """
-        self.api = lambda query: f"Syaro is best girl given query: `{query}`"
+        self.api = lambda query: f"Your query is processed. The response is Attention is all you need***"
 
     def __call__(self, query: str, *args: Any, **kwargs: Any) -> str:
         """
