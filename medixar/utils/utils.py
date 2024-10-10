@@ -96,4 +96,4 @@ def load_system_prompt(
     system_prompt = prompts.get(system_prompt_type, "GENERAL_ASSISTANT")
     tool_prompts = load_tool_prompts(tools, tools_json_path)
 
-    return f"{system_prompt}\n\nTools:\n{tool_prompts}"
+    return f"{system_prompt}\n\nTools:\n{tool_prompts}".strip()
