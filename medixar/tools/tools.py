@@ -1,84 +1,107 @@
-"""
-File: config.py
------------------
-Define abstract classes for tools.
-"""
+from typing import Dict, Optional, Tuple, Type
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForToolRun,
+    CallbackManagerForToolRun,
+)
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
 
-from abc import ABC, abstractmethod
-from typing import Any, List, Dict, Union
+
+class RadiologyImageInput(BaseModel):
+    """Input for the Radiology Report Generator tool."""
+
+    image_path: str = Field(..., description="Path to the radiology image file")
 
 
-class Tool(ABC):
+class RadiologyReportGeneratorTool(BaseTool):
+    """Tool that generates a radiology report based on an input image.
+
+    This tool is designed to analyze radiology images and produce corresponding reports.
+    Currently, it returns a placeholder string, but it's structured to be extended
+    with actual image analysis functionality in the future.
+
+    Setup:
+        Ensure you have the necessary dependencies installed:
+
+        .. code-block:: bash
+
+            pip install -U langchain-core pydantic
+
+    Instantiate:
+
+        .. code-block:: python
+
+            from your_module import RadiologyReportGeneratorTool
+
+            tool = RadiologyReportGeneratorTool()
+
+    Invoke directly with args:
+
+        .. code-block:: python
+
+            tool.invoke({'image_path': '/path/to/image.jpg'})
+
+        .. code-block:: python
+
+            'Radiology report for image: /path/to/image.jpg, heart is normal, lungs have pneumonia.'  # Placeholder output
+
     """
-    Abstract base class for tools.
-    """
 
-    api_name: str
-    input_args: Dict[str, Any]
-    output_type: Any
-    api: Any
+    name: str = "radiology_report_generator"
+    description: str = (
+        "A tool that analyzes radiology images and generates corresponding reports. "
+        "Input should be the path to a radiology image file."
+    )
+    args_schema: Type[BaseModel] = RadiologyImageInput
 
-    def __init__(
+    def _run(
         self,
-        api_name: str,
-        input_args: Dict[str, Any],
-        output_type: Any,
-    ):
-        self.api_name = api_name
-        self.input_args = input_args
-        self.output_type = output_type
-        self.api = None
+        image_path: str,
+        run_manager: Optional[CallbackManagerForToolRun] = None,
+    ) -> Tuple[str, Dict]:
+        """Generate a radiology report based on the input image.
 
-    @property
-    def get_input_args(self) -> Dict[str, Any]:
-        """
-        Get the expected input args for the tool.
-        """
-        return self.input_args
+        Args:
+            image_path (str): The path to the radiology image file.
+            run_manager (Optional[CallbackManagerForToolRun]): The callback manager for the tool run.
 
-    @property
-    def get_output_type(self) -> Any:
-        """
-        Get the expected output type for the tool.
-        """
-        return self.output_type
+        Returns:
+            Tuple[str, Dict]: A tuple containing the generated report (currently a placeholder)
+                              and any additional metadata.
 
-    @abstractmethod
-    def setup_api(self):
+        Raises:
+            Exception: If there's an error processing the image.
         """
-        Setup the API for the tool.
-        """
-        pass
+        try:
+            # Placeholder for future image analysis logic
+            report = f"Radiology report for image: {image_path}, heart is normal, lungs have pneumonia."
+            metadata = {"image_path": image_path, "analysis_status": "placeholder"}
+            return report, metadata
+        except Exception as e:
+            return f"Error generating report: {str(e)}", {}
 
-    @abstractmethod
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """
-        Run the tool with the given inputs.
-        """
-        pass
+    async def _arun(
+        self,
+        image_path: str,
+        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+    ) -> Tuple[str, Dict]:
+        """Asynchronously generate a radiology report based on the input image.
 
+        Args:
+            image_path (str): The path to the radiology image file.
+            run_manager (Optional[AsyncCallbackManagerForToolRun]): The async callback manager for the tool run.
 
-class WebSearchTool(Tool):
-    """
-    Tool for web search.
-    """
+        Returns:
+            Tuple[str, Dict]: A tuple containing the generated report (currently a placeholder)
+                              and any additional metadata.
 
-    def __init__(self):
-        super().__init__(
-            api_name="web_search",
-            input_args={"query": str},
-            output_type=str,
-        )
-        self.setup_api()
-
-    def setup_api(self):
+        Raises:
+            Exception: If there's an error processing the image.
         """
-        Setup the API for the tool.
-        """
-        self.api = lambda query: f"Your query is processed. The response is Attention is all you need***"
-
-    def __call__(self, query: str, *args: Any, **kwargs: Any) -> str:
-        """
-        Run the tool with the given inputs.
-        """
-        return self.api(query)
+        try:
+            # Placeholder for future async image analysis logic
+            report = f"Radiology report for image: {image_path}, heart is normal, lungs have pneumonia."
+            metadata = {"image_path": image_path, "analysis_status": "placeholder"}
+            return report, metadata
+        except Exception as e:
+            return f"Error generating report: {str(e)}", {}
