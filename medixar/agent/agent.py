@@ -23,10 +23,15 @@ class Agent:
         graph (StateGraph): The compiled state graph for the agent's workflow.
         tools (Dict[str, BaseTool]): A dictionary of available tools for the agent.
         model (BaseLanguageModel): The language model used by the agent.
+        checkpointer (Any): The checkpointer used to save and load the agent's state.
     """
 
     def __init__(
-        self, model: BaseLanguageModel, tools: List[BaseTool], system: str = ""
+        self,
+        model: BaseLanguageModel,
+        tools: List[BaseTool],
+        checkpointer: Any = None,
+        system: str = "",
     ):
         """
         Initialize the Agent.
@@ -45,7 +50,7 @@ class Agent:
         )
         graph.add_edge("action", "assisstant")
         graph.set_entry_point("assisstant")
-        self.graph = graph.compile()
+        self.graph = graph.compile(checkpointer=checkpointer)
         self.tools = {t.name: t for t in tools}
         self.model = model.bind_tools(tools)
 
