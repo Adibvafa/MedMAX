@@ -1,144 +1,104 @@
-"""
-File: agent.py
------------------
-Define the Agent class.
-"""
+from typing import List, Dict, Any, TypedDict, Annotated
+import operator
+from dotenv import load_dotenv
 
-import re
-from typing import Dict, List, Optional, Tuple
+from langgraph.graph import StateGraph, END
+from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, ToolMessage
+from langchain_core.language_models import BaseLanguageModel
+from langchain_core.tools import BaseTool
 
-import torch
-from transformers import pipeline
+_ = load_dotenv()
 
-from medixar.tools import Tool
-from medixar.utils import load_system_prompt
+
+class AgentState(TypedDict):
+    messages: Annotated[List[AnyMessage], operator.add]
 
 
 class Agent:
+    """
+    A class representing an agent that can perform actions based on language model responses.
+
+    Attributes:
+        system (str): The system message for the agent.
+        graph (StateGraph): The compiled state graph for the agent's workflow.
+        tools (Dict[str, BaseTool]): A dictionary of available tools for the agent.
+        model (BaseLanguageModel): The language model used by the agent.
+    """
+
     def __init__(
-        self,
-        model: str = "meta-llama/Llama-3.2-1B-Instruct",
-        tools: Dict[str, Tool] = {},
-        tools_json_path: str = "medixar/docs/tools.json",
-        system_prompts_file: str = "medixar/docs/system_prompts.txt",
-        system_prompt_type: str = "MEDICAL_ASSISTANT",
-        device: str = "auto",
-        torch_dtype: torch.dtype = torch.float16,
-        max_new_tokens: int = 256,
-        temperature: float = 0.7,
-        top_p: float = 0.95,
+        self, model: BaseLanguageModel, tools: List[BaseTool], system: str = ""
     ):
-        self.model: str = model
-        self.tools: Dict[str, Tool] = tools
-        self.tools_json_path: str = tools_json_path
-        self.system_prompts_file: str = system_prompts_file
-        self.system_prompt_type: str = system_prompt_type
-        self.device: str = device
-        self.torch_dtype: torch.dtype = torch_dtype
-        self.max_new_tokens: int = max_new_tokens
-        self.temperature: float = temperature
-        self.top_p: float = top_p
-        self.pipe: Optional[pipeline] = self.load_pipeline()
-        self.messages: List[Dict[str, str]] = self.initialize_messages()
-        self.system_prompt: str = self.get_system_prompt()
+        """
+        Initialize the Agent.
 
-    def load_pipeline(self) -> Optional[pipeline]:
+        Args:
+            model (BaseLanguageModel): The language model to use.
+            tools (List[BaseTool]): A list of tools available to the agent.
+            system (str, optional): The system message. Defaults to "".
         """
-        Load model from Hugging Face.
-        """
-        return pipeline(
-            "text-generation",
-            model=self.model,
-            torch_dtype=self.torch_dtype,
-            device_map=self.device,
+        self.system = system
+        graph = StateGraph(AgentState)
+        graph.add_node("assisstant", self.call_openai)
+        graph.add_node("action", self.take_action)
+        graph.add_conditional_edges(
+            "assisstant", self.exists_action, {True: "action", False: END}
         )
+        graph.add_edge("action", "assisstant")
+        graph.set_entry_point("assisstant")
+        self.graph = graph.compile()
+        self.tools = {t.name: t for t in tools}
+        self.model = model.bind_tools(tools)
 
-    def generate(
-        self,
-        user_message: str,
-    ) -> str:
+    def exists_action(self, state: AgentState) -> bool:
         """
-        Generate a response from the model and update conversation history.
-        """
-        self.messages.append({"role": "user", "content": user_message})
-        return self.generate_and_process_response()
+        Check if there are any tool calls in the last message.
 
-    def generate_and_process_response(self) -> str:
-        """
-        Generate a response from the LLM, process it, and handle tool calls if any.
-        """
-        response = self.generate_llm_response()
-        processed_response, tool_output = self.process_response(response)
+        Args:
+            state (AgentState): The current state of the agent.
 
-        if tool_output:
-            assistant_response = response.split("<tool>")[0].strip()
-            self.messages.append({"role": "assistant", "content": assistant_response})
-            self.messages.append({"role": "tool", "content": tool_output})
-            # self.messages.append({"role": "user", "content": ""})
-            return self.generate_and_process_response()
+        Returns:
+            bool: True if there are tool calls, False otherwise.
+        """
+        result = state["messages"][-1]
+        return len(result.tool_calls) > 0
 
-        self.messages.append({"role": "assistant", "content": processed_response})
-        return processed_response
+    def call_openai(self, state: AgentState) -> Dict[str, List[AnyMessage]]:
+        """
+        Invoke the language model with the current messages.
 
-    def generate_llm_response(self) -> str:
-        """
-        Generate a response from the LLM.
-        """
-        outputs = self.pipe(
-            self.messages,
-            max_new_tokens=self.max_new_tokens,
-            do_sample=True,
-            temperature=self.temperature,
-            top_p=self.top_p,
-        )
-        return outputs[0]["generated_text"][-1]["content"]
+        Args:
+            state (AgentState): The current state of the agent.
 
-    def process_response(self, response: str) -> Tuple[str, Optional[str]]:
+        Returns:
+            Dict[str, List[AnyMessage]]: A dictionary containing the model's response.
         """
-        Process the response, checking for tool usage and updating the response if necessary.
-        """
-        tool_output = None
-        if "<tool>" in response and "</tool>" in response:
-            tool_output = self.execute_tool(response)
+        messages = state["messages"]
+        if self.system:
+            messages = [SystemMessage(content=self.system)] + messages
+        message = self.model.invoke(messages)
+        return {"messages": [message]}
 
-        return response, tool_output
+    def take_action(self, state: AgentState) -> Dict[str, List[ToolMessage]]:
+        """
+        Execute tool calls based on the language model's response.
 
-    def execute_tool(self, response: str) -> Optional[str]:
-        """
-        Extract tool call from the response and execute the tool.
-        """
-        tool_pattern = r"<tool>(.*?)</tool>"
-        match = re.search(tool_pattern, response)
+        Args:
+            state (AgentState): The current state of the agent.
 
-        if match:
-            tool_content = match.group(1)
-            tool_name, tool_args = tool_content.split("(", 1)
-            tool_name = tool_name.strip()
-            tool_args = tool_args.split(")")[0].strip()
-            if tool_name in self.tools:
-                return self.tools[tool_name](eval(tool_args))
-
-        return None
-
-    def clear_history(self) -> None:
+        Returns:
+            Dict[str, List[ToolMessage]]: A dictionary containing the results of tool executions.
         """
-        Clear the conversation history, keeping only the system message.
-        """
-        self.messages = self.initialize_messages()
-
-    def initialize_messages(self) -> List[Dict[str, str]]:
-        """
-        Initialize the messages history with the system prompt.
-        """
-        return [{"role": "system", "content": self.get_system_prompt()}]
-
-    def get_system_prompt(self) -> str:
-        """
-        Set the system prompt.
-        """
-        return load_system_prompt(
-            self.system_prompts_file,
-            self.system_prompt_type,
-            list(self.tools.keys()),
-            self.tools_json_path,
-        )
+        tool_calls = state["messages"][-1].tool_calls
+        results = []
+        for t in tool_calls:
+            print(f"Calling: {t}")
+            if t["name"] not in self.tools:  # check for bad tool name from assisstant
+                print("\n ....bad tool name....")
+                result = "bad tool name, retry"  # instruct assisstant to retry if bad
+            else:
+                result = self.tools[t["name"]].invoke(t["args"])
+            results.append(
+                ToolMessage(tool_call_id=t["id"], name=t["name"], content=str(result))
+            )
+        print("Back to the model!")
+        return {"messages": results}
