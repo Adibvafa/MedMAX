@@ -1,2 +1,2 @@
-# MedicalAgent
-Multimodal Medical Agent Project.
+# MedMAX
+Medical Multimodal Agent for X-ray
