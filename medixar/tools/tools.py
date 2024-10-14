@@ -268,13 +268,7 @@ class RadiologyReportGeneratorTool(BaseTool):
         Raises:
             Exception: If there's an error processing the image.
         """
-        try:
-            # Placeholder for future async image analysis logic
-            report = f"Radiology report for image: {image_path}, heart is normal, lungs have pneumonia."
-            metadata = {"image_path": image_path, "analysis_status": "placeholder"}
-            return report, metadata
-        except Exception as e:
-            return f"Error generating report: {str(e)}", {}
+        return self._run(image_path)
 
 
 class OrganSizeMeasurementInput(BaseModel):
@@ -378,15 +372,4 @@ class OrganSizeMeasurementTool(BaseTool):
         Raises:
             Exception: If there's an error processing the image or measuring the organ.
         """
-        try:
-            # Placeholder for future async organ measurement logic
-            size = f"15 cm x 10 cm x 8 cm"
-            result = f"The size of the {organ} in the image {image_path} is approximately {size}."
-            metadata = {
-                "image_path": image_path,
-                "organ": organ,
-                "measurement_status": "placeholder",
-            }
-            return result, metadata
-        except Exception as e:
-            return f"Error measuring organ size: {str(e)}", {}
+        return self._run(image_path, organ)
