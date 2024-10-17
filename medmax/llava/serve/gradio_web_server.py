@@ -7,10 +7,10 @@ import time
 import gradio as gr
 import requests
 
-from medixar.llava.conversation import (default_conversation, conv_templates,
+from medmax.llava.conversation import (default_conversation, conv_templates,
                                    SeparatorStyle)
-from medixar.llava.constants import LOGDIR
-from medixar.llava.utils import (build_logger, server_error_msg,
+from medmax.llava.constants import LOGDIR
+from medmax.llava.utils import (build_logger, server_error_msg,
     violates_moderation, moderation_msg)
 import hashlib
 

@@ -16,10 +16,10 @@ from pydantic import BaseModel, Field
 import torch
 from PIL import Image
 
-from medixar.llava.conversation import conv_templates
-from medixar.llava.model.builder import load_pretrained_model
-from medixar.llava.mm_utils import tokenizer_image_token, process_images
-from medixar.llava.constants import (
+from medmax.llava.conversation import conv_templates
+from medmax.llava.model.builder import load_pretrained_model
+from medmax.llava.mm_utils import tokenizer_image_token, process_images
+from medmax.llava.constants import (
     IMAGE_TOKEN_INDEX,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_IM_START_TOKEN,

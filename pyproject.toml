@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "medixar"
+name = "medmax"
 version = "0.1.0"
 description = "A medical imaging and natural language processing project"
 authors = [
@@ -62,7 +62,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["medixar*"]
+include = ["medmax*"]
 exclude = ["med_env*", "demo*"]
 
 [tool.black]
