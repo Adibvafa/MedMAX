@@ -48,6 +48,7 @@ dependencies = [
     "torch>=2.2.0",
     "torchvision>=0.10.0",
     "scikit-image>=0.18.0",
+    "pygraphviz>=1.8",
 ]
 
 [project.optional-dependencies]
