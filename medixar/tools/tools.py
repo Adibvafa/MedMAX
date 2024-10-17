@@ -13,10 +13,10 @@ from langchain_core.callbacks import (
 from langchain_core.tools import BaseTool
 
 
-class ChestXRayInput(BaseModel):
-    """Input for the Chest X-Ray Classifier tool."""
+class RadiologyImageInput(BaseModel):
+    """Input for radiology image analysis tools."""
 
-    image_path: str = Field(..., description="Path to the chest X-ray image file")
+    image_path: str = Field(..., description="Path to the radiology image file")
 
 
 class ChestXRayClassifierTool(BaseTool):
@@ -71,7 +71,7 @@ class ChestXRayClassifierTool(BaseTool):
         "Lung Opacity, Mass, Nodule, Pleural Thickening, Pneumonia, and Pneumothorax. "
         "Higher values indicate a higher likelihood of the condition being present."
     )
-    args_schema: Type[BaseModel] = ChestXRayInput
+    args_schema: Type[BaseModel] = RadiologyImageInput
     model: xrv.models.DenseNet = None
     transform: torchvision.transforms.Compose = None
 
@@ -175,12 +175,6 @@ class ChestXRayClassifierTool(BaseTool):
             Exception: If there's an error processing the image or during classification.
         """
         return self._run(image_path)
-
-
-class RadiologyImageInput(BaseModel):
-    """Input for the Radiology Report Generator tool."""
-
-    image_path: str = Field(..., description="Path to the radiology image file")
 
 
 class RadiologyReportGeneratorTool(BaseTool):
