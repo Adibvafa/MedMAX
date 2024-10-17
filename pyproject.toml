@@ -9,43 +9,45 @@ description = "A medical imaging and natural language processing project"
 authors = [
     {name = "Adibvafa Fallahpour", email = "adibvafa.fallahpour@vectorinstitute.ai"},
 ]
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = [
-    "requests",
-    "numpy",
-    "langchain-core>=0.2.11",
-    "langchain-community>=0.2.11",
-    "langchain-openai>=0.2.11",
-    "pandas",
-    "pydantic",
-    "Pillow",
-    "torchxrayvision",
+    "requests>=2.25.0",
+    "numpy>=1.19.0",
+    "langchain-core>=0.1.0",
+    "langchain-community>=0.0.10",
+    "langchain-openai>=0.0.2",
+    "langchain-anthropic>=0.0.2",
+    "langgraph>=0.0.10",
+    "python-dotenv>=0.19.0",
+    "pandas>=1.3.0",
+    "pydantic>=1.8.0",
+    "Pillow>=8.0.0",
+    "torchxrayvision>=0.0.37",
     "transformers==4.36.2",
-    "tokenizers",
-    "sentencepiece",
-    "shortuuid",
-    "accelerate",
-    "peft",
-    "bitsandbytes",
-    "markdown2[all]",
-    "protobuf",
-    "scikit-learn",
-    "gradio",
-    "gradio_client",
-    "httpx",
-    "uvicorn",
-    "fastapi",
-    "einops",
-    "einops-exts",
-    "timm",
-    "tiktoken",
-    "openai",
-    "backoff",
-    "python-dotenv",
-    "torch",
-    "torchvision",
-    "scikit-image",
+    "tokenizers>=0.10.0",
+    "sentencepiece>=0.1.95",
+    "shortuuid>=1.0.0",
+    "accelerate>=0.12.0",
+    "peft>=0.2.0",
+    "bitsandbytes>=0.35.0",
+    "markdown2[all]>=2.4.0",
+    "protobuf>=3.15.0",
+    "scikit-learn>=0.24.0",
+    "gradio>=3.0.0",
+    "gradio_client>=0.2.0",
+    "httpx>=0.23.0",
+    "uvicorn>=0.15.0",
+    "fastapi>=0.68.0",
+    "einops>=0.3.0",
+    "einops-exts>=0.0.4",
+    "timm>=0.5.0",
+    "tiktoken>=0.3.0",
+    "openai>=0.27.0",
+    "backoff>=1.10.0",
+    "torch>=2.2.0",
+    "torchvision>=0.10.0",
+    "scikit-image>=0.18.0",
 ]
 
 [project.optional-dependencies]
@@ -57,9 +59,14 @@ dev = [
     "mypy",
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["medixar*"]
+exclude = ["med_env*", "demo*"]
+
 [tool.black]
 line-length = 100
-target-version = ['py38']
+target-version = ['py310']
 
 [tool.isort]
 profile = "black"
