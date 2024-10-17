@@ -1,18 +1,73 @@
-   [build-system]
-   requires = ["setuptools>=45", "wheel"]
-   build-backend = "setuptools.build_meta"
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
 
-   [project]
-   name = "medixar"
-   version = "0.1.0"
-   dependencies = [
-       "requests>=2.25.1",
-       "numpy>=1.20.0",
-       "langchain-core>=0.2.11",
-       "langchain-community>=0.2.11",
-       "langchain-openai>=0.2.11",
-       "pandas>=1.5.3",
-       "pydantic>=1.10.11",
-       "Pillow>=10.0.0",
-       "torchxrayvision>=1.0.1",
-   ]
+[project]
+name = "medixar"
+version = "0.1.0"
+description = "A medical imaging and natural language processing project"
+authors = [
+    {name = "Adibvafa Fallahpour", email = "adibvafa.fallahpour@vectorinstitute.ai"},
+]
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "numpy",
+    "langchain-core>=0.2.11",
+    "langchain-community>=0.2.11",
+    "langchain-openai>=0.2.11",
+    "pandas",
+    "pydantic",
+    "Pillow",
+    "torchxrayvision",
+    "transformers==4.36.2",
+    "tokenizers",
+    "sentencepiece",
+    "shortuuid",
+    "accelerate",
+    "peft",
+    "bitsandbytes",
+    "markdown2[all]",
+    "protobuf",
+    "scikit-learn",
+    "gradio",
+    "gradio_client",
+    "httpx",
+    "uvicorn",
+    "fastapi",
+    "einops",
+    "einops-exts",
+    "timm",
+    "tiktoken",
+    "openai",
+    "backoff",
+    "python-dotenv",
+    "torch",
+    "torchvision",
+    "scikit-image",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "isort",
+    "flake8",
+    "mypy",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+ignore_missing_imports = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
