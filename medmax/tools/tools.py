@@ -16,6 +16,13 @@ from pydantic import BaseModel, Field
 import torch
 from PIL import Image
 
+from transformers import (
+    BertTokenizer,
+    ViTImageProcessor,
+    VisionEncoderDecoderModel,
+    GenerationConfig
+)
+
 from medmax.llava.conversation import conv_templates
 from medmax.llava.model.builder import load_pretrained_model
 from medmax.llava.mm_utils import tokenizer_image_token, process_images
@@ -168,8 +175,8 @@ class MedicalVisualQATool(BaseTool):
         return self._run(question, image_path)
 
 
-class RadiologyImageInput(BaseModel):
-    """Input for radiology image analysis tools."""
+class ChestXRayInput(BaseModel):
+    """Input for chest X-ray analysis tools."""
 
     image_path: str = Field(..., description="Path to the radiology image file")
 
@@ -198,7 +205,7 @@ class ChestXRayClassifierTool(BaseTool):
         "Lung Opacity, Mass, Nodule, Pleural Thickening, Pneumonia, and Pneumothorax. "
         "Higher values indicate a higher likelihood of the condition being present."
     )
-    args_schema: Type[BaseModel] = RadiologyImageInput
+    args_schema: Type[BaseModel] = ChestXRayInput
     model: xrv.models.DenseNet = None
     transform: torchvision.transforms.Compose = None
 
@@ -304,143 +311,190 @@ class ChestXRayClassifierTool(BaseTool):
         return self._run(image_path)
 
 
-class RadiologyReportGeneratorTool(BaseTool):
-    """Tool that generates a radiology report based on an input image.
+class ChestXRayReportGeneratorTool(BaseTool):
+    """Tool that generates comprehensive chest X-ray reports with both findings and impressions.
+    
+    This tool uses two Vision-Encoder-Decoder models (ViT-BERT) trained on CheXpert 
+    and MIMIC-CXR datasets to generate structured radiology reports. It automatically 
+    generates both detailed findings and impression summaries for each chest X-ray,
+    following standard radiological reporting format.
 
-    This tool is designed to analyze radiology images and produce corresponding reports.
-    Currently, it returns a placeholder string, but it's structured to be extended
-    with actual image analysis functionality in the future.
+    The tool uses:
+    - Findings model: Generates detailed observations of all visible structures
+    - Impression model: Provides concise clinical interpretation and key diagnoses
     """
 
-    name: str = "radiology_report_generator"
+    name: str = "chest_xray_report_generator"
     description: str = (
-        "A tool that analyzes radiology images and generates corresponding reports. "
-        "Input should be the path to a radiology image file."
+        "A tool that analyzes chest X-ray images and generates comprehensive radiology reports "
+        "containing both detailed findings and impression summaries. Input should be the path "
+        "to a chest X-ray image file. Output is a structured report with both detailed "
+        "observations and key clinical conclusions."
     )
-    args_schema: Type[BaseModel] = RadiologyImageInput
+    args_schema: Type[BaseModel] = ChestXRayInput
+    findings_model: VisionEncoderDecoderModel = None
+    impression_model: VisionEncoderDecoderModel = None
+    findings_tokenizer: BertTokenizer = None
+    impression_tokenizer: BertTokenizer = None
+    findings_processor: ViTImageProcessor = None
+    impression_processor: ViTImageProcessor = None
+    generation_args: Dict[str, Any] = None
 
-    def _run(
-        self,
-        image_path: str,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Tuple[str, Dict]:
-        """Generate a radiology report based on the input image.
+    def __init__(self):
+        """Initialize the ChestXRayReportGeneratorTool with both findings and impression models."""
+        super().__init__()
+        
+        # Initialize findings model
+        self.findings_model = VisionEncoderDecoderModel.from_pretrained(
+            "IAMJB/chexpert-mimic-cxr-findings-baseline"
+        ).eval()
+        self.findings_tokenizer = BertTokenizer.from_pretrained(
+            "IAMJB/chexpert-mimic-cxr-findings-baseline"
+        )
+        self.findings_processor = ViTImageProcessor.from_pretrained(
+            "IAMJB/chexpert-mimic-cxr-findings-baseline"
+        )
 
+        # Initialize impression model
+        self.impression_model = VisionEncoderDecoderModel.from_pretrained(
+            "IAMJB/chexpert-mimic-cxr-impression-baseline"
+        ).eval()
+        self.impression_tokenizer = BertTokenizer.from_pretrained(
+            "IAMJB/chexpert-mimic-cxr-impression-baseline"
+        )
+        self.impression_processor = ViTImageProcessor.from_pretrained(
+            "IAMJB/chexpert-mimic-cxr-impression-baseline"
+        )
+        
+        # Move models to GPU if available
+        if torch.cuda.is_available():
+            self.findings_model = self.findings_model.cuda()
+            self.impression_model = self.impression_model.cuda()
+        
+        # Default generation arguments
+        self.generation_args = {
+            "num_return_sequences": 1,
+            "max_length": 128,
+            "use_cache": True,
+            "beam_width": 2,
+        }
+
+    def _process_image(self, image_path: str, processor: ViTImageProcessor, model: VisionEncoderDecoderModel) -> torch.Tensor:
+        """Process the input image for a specific model.
+        
         Args:
-            image_path (str): The path to the radiology image file.
-            run_manager (Optional[CallbackManagerForToolRun]): The callback manager for the tool run.
-
+            image_path (str): Path to the input image.
+            processor: Image processor for the specific model.
+            model: The model to process the image for.
+            
         Returns:
-            Tuple[str, Dict]: A tuple containing the generated report (currently a placeholder)
-                              and any additional metadata.
-
-        Raises:
-            Exception: If there's an error processing the image.
+            torch.Tensor: Processed image tensor ready for model input.
         """
-        try:
-            # Placeholder for future image analysis logic
-            report = (
-                f"Radiology report for image: {image_path}, heart is normal, lungs have pneumonia."
+        image = Image.open(image_path).convert('RGB')
+        pixel_values = processor(image, return_tensors="pt").pixel_values
+        
+        expected_size = model.config.encoder.image_size
+        actual_size = pixel_values.shape[-1]
+        
+        if expected_size != actual_size:
+            pixel_values = torch.nn.functional.interpolate(
+                pixel_values,
+                size=(expected_size, expected_size),
+                mode='bilinear',
+                align_corners=False
             )
-            metadata = {"image_path": image_path, "analysis_status": "placeholder"}
-            return report, metadata
-        except Exception as e:
-            return f"Error generating report: {str(e)}", {}
+        
+        if torch.cuda.is_available():
+            pixel_values = pixel_values.cuda()
+            
+        return pixel_values
 
-    async def _arun(
-        self,
-        image_path: str,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[str, Dict]:
-        """Asynchronously generate a radiology report based on the input image.
-
+    def _generate_report_section(self, pixel_values: torch.Tensor, model: VisionEncoderDecoderModel, 
+                               tokenizer: BertTokenizer) -> str:
+        """Generate a report section using the specified model.
+        
         Args:
-            image_path (str): The path to the radiology image file.
-            run_manager (Optional[AsyncCallbackManagerForToolRun]): The async callback manager for the tool run.
-
+            pixel_values: Processed image tensor.
+            model: The model to use for generation.
+            tokenizer: The tokenizer for the model.
+            
         Returns:
-            Tuple[str, Dict]: A tuple containing the generated report (currently a placeholder)
-                              and any additional metadata.
-
-        Raises:
-            Exception: If there's an error processing the image.
+            str: Generated text for the report section.
         """
-        return self._run(image_path)
-
-
-class OrganSizeMeasurementInput(BaseModel):
-    """Input for the Organ Size Measurement tool."""
-
-    image_path: str = Field(..., description="Path to the radiology image file")
-    organ: str = Field(..., description="Name of the organ of interest")
-
-
-class OrganSizeMeasurementTool(BaseTool):
-    """Tool that measures the size of a specified organ in a radiology image.
-
-    This tool is designed to analyze radiology images and return the size of a specified organ.
-    Currently, it returns a placeholder size, but it's structured to be extended
-    with actual image analysis functionality in the future.
-    """
-
-    name: str = "organ_size_measurement"
-    description: str = (
-        "A tool that analyzes radiology images and measures the size of a specified organ. "
-        "Input should be the path to a radiology image file and the name of the organ of interest."
-    )
-    args_schema: Type[BaseModel] = OrganSizeMeasurementInput
+        generation_config = GenerationConfig(
+            **{
+                **self.generation_args,
+                "bos_token_id": model.config.bos_token_id,
+                "eos_token_id": model.config.eos_token_id,
+                "pad_token_id": model.config.pad_token_id,
+                "decoder_start_token_id": tokenizer.cls_token_id
+            }
+        )
+        
+        generated_ids = model.generate(
+            pixel_values,
+            generation_config=generation_config
+        )
+        
+        return tokenizer.batch_decode(
+            generated_ids,
+            skip_special_tokens=True
+        )[0]
 
     def _run(
         self,
         image_path: str,
-        organ: str,
         run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[str, Dict]:
-        """Measure the size of a specified organ in the input image.
+        """Generate a comprehensive chest X-ray report containing both findings and impression.
 
         Args:
-            image_path (str): The path to the radiology image file.
-            organ (str): The name of the organ to measure.
-            run_manager (Optional[CallbackManagerForToolRun]): The callback manager for the tool run.
+            image_path (str): The path to the chest X-ray image file.
+            run_manager (Optional[CallbackManagerForToolRun]): The callback manager.
 
         Returns:
-            Tuple[str, Dict]: A tuple containing the size measurement (currently a placeholder)
-                              and any additional metadata.
-
-        Raises:
-            Exception: If there's an error processing the image or measuring the organ.
+            Tuple[str, Dict]: A tuple containing the complete report and metadata.
         """
         try:
-            # Placeholder for future organ measurement logic
-            size = f"15 cm x 10 cm x 8 cm"
-            result = f"The size of the {organ} in the image {image_path} is approximately {size}."
+            # Process image for both models
+            findings_pixels = self._process_image(image_path, self.findings_processor, self.findings_model)
+            impression_pixels = self._process_image(image_path, self.impression_processor, self.impression_model)
+            
+            # Generate both sections
+            with torch.no_grad():
+                findings_text = self._generate_report_section(
+                    findings_pixels, self.findings_model, self.findings_tokenizer
+                )
+                impression_text = self._generate_report_section(
+                    impression_pixels, self.impression_model, self.impression_tokenizer
+                )
+            
+            # Combine into formatted report
+            report = (
+                "CHEST X-RAY REPORT\n\n"
+                f"FINDINGS:\n{findings_text}\n\n"
+                f"IMPRESSION:\n{impression_text}"
+            )
+            
             metadata = {
                 "image_path": image_path,
-                "organ": organ,
-                "measurement_status": "placeholder",
+                "analysis_status": "completed",
+                "sections_generated": ["findings", "impression"],
             }
-            return result, metadata
+            
+            return report, metadata
+            
         except Exception as e:
-            return f"Error measuring organ size: {str(e)}", {}
+            return f"Error generating report: {str(e)}", {
+                "image_path": image_path,
+                "analysis_status": "failed",
+                "error": str(e)
+            }
 
     async def _arun(
         self,
         image_path: str,
-        organ: str,
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[str, Dict]:
-        """Asynchronously measure the size of a specified organ in the input image.
-
-        Args:
-            image_path (str): The path to the radiology image file.
-            organ (str): The name of the organ to measure.
-            run_manager (Optional[AsyncCallbackManagerForToolRun]): The async callback manager for the tool run.
-
-        Returns:
-            Tuple[str, Dict]: A tuple containing the size measurement (currently a placeholder)
-                              and any additional metadata.
-
-        Raises:
-            Exception: If there's an error processing the image or measuring the organ.
-        """
-        return self._run(image_path, organ)
+        """Asynchronously generate a comprehensive chest X-ray report."""
+        return self._run(image_path)
