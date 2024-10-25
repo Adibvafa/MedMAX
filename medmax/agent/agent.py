@@ -16,14 +16,15 @@ class AgentState(TypedDict):
 
 class Agent:
     """
-    A class representing an agent that can perform actions based on language model responses.
+    A class representing an agent that processes requests and executes tools based on 
+    language model responses.
 
     Attributes:
-        system (str): The system message for the agent.
-        graph (StateGraph): The compiled state graph for the agent's workflow.
-        tools (Dict[str, BaseTool]): A dictionary of available tools for the agent.
-        model (BaseLanguageModel): The language model used by the agent.
-        checkpointer (Any): The checkpointer used to save and load the agent's state.
+        model (BaseLanguageModel): The language model used for processing.
+        tools (Dict[str, BaseTool]): A dictionary of available tools.
+        checkpointer (Any): Manages and persists the agent's state.
+        system_prompt (str): The system instructions for the agent.
+        workflow (StateGraph): The compiled workflow for the agent's processing.
     """
 
     def __init__(
@@ -31,45 +32,50 @@ class Agent:
         model: BaseLanguageModel,
         tools: List[BaseTool],
         checkpointer: Any = None,
-        system: str = "",
+        system_prompt: str = "",
     ):
         """
         Initialize the Agent.
 
         Args:
             model (BaseLanguageModel): The language model to use.
-            tools (List[BaseTool]): A list of tools available to the agent.
-            system (str, optional): The system message. Defaults to "".
+            tools (List[BaseTool]): A list of available tools.
+            checkpointer (Any, optional): State persistence manager. Defaults to None.
+            system_prompt (str, optional): System instructions. Defaults to "".
         """
-        self.system = system
-        graph = StateGraph(AgentState)
-        graph.add_node("assisstant", self.call_openai)
-        graph.add_node("action", self.take_action)
-        graph.add_conditional_edges(
-            "assisstant", self.exists_action, {True: "action", False: END}
+        self.system_prompt = system_prompt
+        workflow = StateGraph(AgentState)
+        
+        workflow.add_node("process", self.process_request)
+        workflow.add_node("execute", self.execute_tools)
+        workflow.add_conditional_edges(
+            "process", 
+            self.has_tool_calls, 
+            {True: "execute", False: END}
         )
-        graph.add_edge("action", "assisstant")
-        graph.set_entry_point("assisstant")
-        self.graph = graph.compile(checkpointer=checkpointer)
+        workflow.add_edge("execute", "process")
+        workflow.set_entry_point("process")
+        
+        self.workflow = workflow.compile(checkpointer=checkpointer)
         self.tools = {t.name: t for t in tools}
         self.model = model.bind_tools(tools)
 
-    def exists_action(self, state: AgentState) -> bool:
+    def has_tool_calls(self, state: AgentState) -> bool:
         """
-        Check if there are any tool calls in the last message.
+        Check if the response contains any tool calls.
 
         Args:
             state (AgentState): The current state of the agent.
 
         Returns:
-            bool: True if there are tool calls, False otherwise.
+            bool: True if tool calls exist, False otherwise.
         """
-        result = state["messages"][-1]
-        return len(result.tool_calls) > 0
+        response = state["messages"][-1]
+        return len(response.tool_calls) > 0
 
-    def call_openai(self, state: AgentState) -> Dict[str, List[AnyMessage]]:
+    def process_request(self, state: AgentState) -> Dict[str, List[AnyMessage]]:
         """
-        Invoke the language model with the current messages.
+        Process the request using the language model.
 
         Args:
             state (AgentState): The current state of the agent.
@@ -78,32 +84,39 @@ class Agent:
             Dict[str, List[AnyMessage]]: A dictionary containing the model's response.
         """
         messages = state["messages"]
-        if self.system:
-            messages = [SystemMessage(content=self.system)] + messages
-        message = self.model.invoke(messages)
-        return {"messages": [message]}
+        if self.system_prompt:
+            messages = [SystemMessage(content=self.system_prompt)] + messages
+        response = self.model.invoke(messages)
+        return {"messages": [response]}
 
-    def take_action(self, state: AgentState) -> Dict[str, List[ToolMessage]]:
+    def execute_tools(self, state: AgentState) -> Dict[str, List[ToolMessage]]:
         """
-        Execute tool calls based on the language model's response.
+        Execute tool calls from the model's response.
 
         Args:
             state (AgentState): The current state of the agent.
 
         Returns:
-            Dict[str, List[ToolMessage]]: A dictionary containing the results of tool executions.
+            Dict[str, List[ToolMessage]]: A dictionary containing tool execution results.
         """
         tool_calls = state["messages"][-1].tool_calls
         results = []
-        for t in tool_calls:
-            print(f"Calling: {t}")
-            if t["name"] not in self.tools:  # check for bad tool name from assisstant
-                print("\n ....bad tool name....")
-                result = "bad tool name, retry"  # instruct assisstant to retry if bad
+
+        for call in tool_calls:
+            print(f"Executing tool: {call}")
+            if call["name"] not in self.tools:
+                print("\n....invalid tool....")
+                result = "invalid tool, please retry"
             else:
-                result = self.tools[t["name"]].invoke(t["args"])
+                result = self.tools[call["name"]].invoke(call["args"])
+            
             results.append(
-                ToolMessage(tool_call_id=t["id"], name=t["name"], content=str(result))
+                ToolMessage(
+                    tool_call_id=call["id"],
+                    name=call["name"],
+                    content=str(result)
+                )
             )
-        print("Back to the model!")
+        
+        print("Returning to model processing!")
         return {"messages": results}
