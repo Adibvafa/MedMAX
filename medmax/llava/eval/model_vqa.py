@@ -5,11 +5,21 @@ import json
 from tqdm import tqdm
 import shortuuid
 
-from medmax.llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from medmax.llava.constants import (
+    IMAGE_TOKEN_INDEX,
+    DEFAULT_IMAGE_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IM_END_TOKEN,
+)
 from medmax.llava.conversation import conv_templates, SeparatorStyle
 from medmax.llava.model.builder import load_pretrained_model
 from medmax.llava.utils import disable_torch_init
-from medmax.llava.mm_utils import tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria, process_images
+from medmax.llava.mm_utils import (
+    tokenizer_image_token,
+    get_model_name_from_path,
+    KeywordsStoppingCriteria,
+    process_images,
+)
 
 from PIL import Image
 import math
@@ -21,7 +31,7 @@ logging.set_verbosity_error()
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -35,7 +45,9 @@ def eval_model(args):
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
-    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name)
+    tokenizer, model, image_processor, context_len = load_pretrained_model(
+        model_path, args.model_base, model_name
+    )
 
     questions = [json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
@@ -45,19 +57,23 @@ def eval_model(args):
     for line in tqdm(questions):
         idx = line["question_id"]
         image_file = line["image"]
-        qs = line["text"].replace(DEFAULT_IMAGE_TOKEN, '').strip()
+        qs = line["text"].replace(DEFAULT_IMAGE_TOKEN, "").strip()
         cur_prompt = qs
         if model.config.mm_use_im_start_end:
-            qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs
+            qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + qs
         else:
-            qs = DEFAULT_IMAGE_TOKEN + '\n' + qs
+            qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
 
         conv = conv_templates[args.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)
         conv.append_message(conv.roles[1], None)
         prompt = conv.get_prompt()
 
-        input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+        input_ids = (
+            tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+            .unsqueeze(0)
+            .cuda()
+        )
 
         image = Image.open(os.path.join(args.image_folder, image_file))
         image_tensor = process_images([image], image_processor, model.config)[0]
@@ -76,17 +92,25 @@ def eval_model(args):
                 num_beams=args.num_beams,
                 # no_repeat_ngram_size=3,
                 max_new_tokens=1024,
-                use_cache=True)
+                use_cache=True,
+            )
 
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
         ans_id = shortuuid.uuid()
-        ans_file.write(json.dumps({"question_id": idx,
-                                   "prompt": cur_prompt,
-                                   "text": outputs,
-                                   "answer_id": ans_id,
-                                   "model_id": model_name,
-                                   "metadata": {}}) + "\n")
+        ans_file.write(
+            json.dumps(
+                {
+                    "question_id": idx,
+                    "prompt": cur_prompt,
+                    "text": outputs,
+                    "answer_id": ans_id,
+                    "model_id": model_name,
+                    "metadata": {},
+                }
+            )
+            + "\n"
+        )
         ans_file.flush()
     ans_file.close()
 
