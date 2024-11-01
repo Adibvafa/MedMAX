@@ -24,6 +24,7 @@ class ToolCallLog(TypedDict):
         args (Any): The arguments passed to the tool.
         content (str): The content or result of the tool call.
     """
+
     timestamp: str
     tool_call_id: str
     name: str
@@ -40,12 +41,13 @@ class AgentState(TypedDict):
             representing the conversation history. The operator.add annotation
             indicates that new messages should be appended to this list.
     """
+
     messages: Annotated[List[AnyMessage], operator.add]
 
 
 class Agent:
     """
-    A class representing an agent that processes requests and executes tools based on 
+    A class representing an agent that processes requests and executes tools based on
     language model responses.
 
     Attributes:
@@ -80,27 +82,24 @@ class Agent:
         """
         self.system_prompt = system_prompt
         self.log_tools = log_tools
-        
+
         if self.log_tools:
-            self.log_path = Path(log_dir or 'logs')
+            self.log_path = Path(log_dir or "logs")
             self.log_path.mkdir(exist_ok=True)
-        
+
         # Define the agent workflow
         workflow = StateGraph(AgentState)
         workflow.add_node("process", self.process_request)
         workflow.add_node("execute", self.execute_tools)
         workflow.add_conditional_edges(
-            "process", 
-            self.has_tool_calls, 
-            {True: "execute", False: END}
+            "process", self.has_tool_calls, {True: "execute", False: END}
         )
         workflow.add_edge("execute", "process")
         workflow.set_entry_point("process")
-        
+
         self.workflow = workflow.compile(checkpointer=checkpointer)
         self.tools = {t.name: t for t in tools}
         self.model = model.bind_tools(tools)
-
 
     def process_request(self, state: AgentState) -> Dict[str, List[AnyMessage]]:
         """
@@ -118,7 +117,6 @@ class Agent:
         response = self.model.invoke(messages)
         return {"messages": [response]}
 
-
     def has_tool_calls(self, state: AgentState) -> bool:
         """
         Check if the response contains any tool calls.
@@ -131,7 +129,6 @@ class Agent:
         """
         response = state["messages"][-1]
         return len(response.tool_calls) > 0
-
 
     def execute_tools(self, state: AgentState) -> Dict[str, List[ToolMessage]]:
         """
@@ -153,21 +150,20 @@ class Agent:
                 result = "invalid tool, please retry"
             else:
                 result = self.tools[call["name"]].invoke(call["args"])
-            
+
             results.append(
                 ToolMessage(
                     tool_call_id=call["id"],
                     name=call["name"],
                     args=call["args"],
-                    content=str(result)
+                    content=str(result),
                 )
             )
-        
+
         self._save_tool_calls(results)
         print("Returning to model processing!")
 
         return {"messages": results}
-
 
     def _save_tool_calls(self, tool_calls: List[ToolMessage]) -> None:
         """
@@ -181,7 +177,7 @@ class Agent:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = self.log_path / f"tool_calls_{timestamp}.json"
-        
+
         logs: List[ToolCallLog] = []
         for call in tool_calls:
             log_entry = {
@@ -192,6 +188,6 @@ class Agent:
                 "timestamp": datetime.now().isoformat(),
             }
             logs.append(log_entry)
-        
-        with open(filename, 'w') as f:
+
+        with open(filename, "w") as f:
             json.dump(logs, f, indent=4)
