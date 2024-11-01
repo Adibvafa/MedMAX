@@ -73,7 +73,7 @@ class ChestXRaySegmentationTool(BaseTool):
 
     name: str = "chest_xray_segmentation"
     description: str = (
-        "Analyzes chest X-ray images to identify and measure 14 anatomical structures: "
+        "Segments chest X-ray images to 14 anatomical structures: "
         "Left/Right Clavicle (collar bones), Left/Right Scapula (shoulder blades), Left/Right Lung, "
         "Left/Right Hilus Pulmonis (lung roots), Heart, Aorta, Facies Diaphragmatica (diaphragm), "
         "Mediastinum (central cavity), Weasand (esophagus), and Spine. "
@@ -87,8 +87,8 @@ class ChestXRaySegmentationTool(BaseTool):
 
     model: Any = None
     transform: Any = None
-    pixel_spacing_mm: float = 0.7
-    temp_dir: Path = Path("tmp")
+    pixel_spacing_mm: float = 0.5
+    temp_dir: Path = Path("temp")
 
     def __init__(self):
         """Initialize the segmentation tool with model and temporary directory."""
@@ -102,7 +102,7 @@ class ChestXRaySegmentationTool(BaseTool):
             [xrv.datasets.XRayCenterCrop(), xrv.datasets.XRayResizer(512)]
         )
 
-        self.temp_dir = Path("tmp") if Path("tmp").exists() else Path(tempfile.mkdtemp())
+        self.temp_dir = Path("temp") if Path("temp").exists() else Path(tempfile.mkdtemp())
         if not self.temp_dir.exists():
             print(f"Initialized segmentation tool with temp directory: {self.temp_dir}")
 
@@ -187,7 +187,7 @@ class ChestXRaySegmentationTool(BaseTool):
         self,
         image_path: str,
         run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[Dict[str, Any], Dict]:
         """Run segmentation analysis and save visualization."""
         try:
             # Load and process image
@@ -225,6 +225,13 @@ class ChestXRaySegmentationTool(BaseTool):
                     if metrics:
                         results[organ_name] = metrics
 
+            # Main output dictionary
+            output = {
+                "segmentation_image_path": viz_path,
+                "metrics": {organ: metrics.dict() for organ, metrics in results.items()},
+            }
+
+            # Metadata dictionary
             metadata = {
                 "image_path": image_path,
                 "segmentation_image_path": viz_path,
@@ -235,25 +242,23 @@ class ChestXRaySegmentationTool(BaseTool):
                 "analysis_status": "completed",
             }
 
-            return {
-                "segmentation_image_path": viz_path,
-                "metrics": {organ: metrics.dict() for organ, metrics in results.items()},
-                "metadata": metadata,
-            }
+            return output, metadata
 
         except Exception as e:
             import traceback
 
-            return {
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-                "metadata": {"image_path": image_path, "analysis_status": "failed"},
+            error_output = {"error": str(e)}
+            error_metadata = {
+                "image_path": image_path,
+                "analysis_status": "failed",
+                "error_traceback": traceback.format_exc(),
             }
+            return error_output, error_metadata
 
     async def _arun(
         self,
         image_path: str,
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[Dict[str, Any], Dict]:
         """Async version of _run."""
         return self._run(image_path)
