@@ -51,6 +51,7 @@ dependencies = [
     "pygraphviz>=1.8",
     "gradio>=5.0.0",
     "opencv-python>=4.8.0",
+    "matplotlib>=3.8.0",
 ]
 
 [project.optional-dependencies]
