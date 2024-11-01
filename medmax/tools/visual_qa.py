@@ -40,8 +40,7 @@ class MedicalVisualQATool(BaseTool):
 
     name: str = "medical_visual_qa"
     description: str = (
-        "A tool that answers medical questions about images using a pre-trained model. "
-        "It can also answer general medical questions without images. "
+        "A tool that answers medical questions about images using a pre-trained model."
         "Input should be a question and optionally a path to a medical image file."
     )
     args_schema: Type[BaseModel] = MedicalVisualQAInput
