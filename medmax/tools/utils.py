@@ -1,4 +1,4 @@
-from typing import Optional, Type
+from typing import Optional, Type, Dict, Tuple
 from pydantic import BaseModel, Field
 import matplotlib.pyplot as plt
 import skimage.io
@@ -28,33 +28,13 @@ class ImageVisualizerInput(BaseModel):
 
 
 class ImageVisualizerTool(BaseTool):
-    """Tool for displaying medical images to users with annotations.
-
-    This tool provides a user-friendly way to display medical images (like X-rays,
-    segmentation masks, etc.) along with optional titles and descriptions. It uses
-    matplotlib for visualization and supports:
-
-    1. Single image display with customizable figure size
-    2. Optional title above the image
-    3. Optional description below the image
-    4. Automatic grayscale handling for medical images
-    5. Error handling for corrupt or missing images
-
-    Usage examples:
-    - Display original X-rays
-    - Show segmentation results
-    - Present analysis visualizations
-    - Display comparison images
-
-    Returns:
-        Dict containing display status and metadata about the visualization
-    """
+    """Tool for displaying medical images to users with annotations."""
 
     name: str = "image_visualizer"
     description: str = (
         "Displays medical images to users with optional titles and descriptions. "
         "Input: Path to image file and optional display parameters. "
-        "Output: Displays the image and returns status information."
+        "Output: Information about the displayed image and visualization status."
     )
     args_schema: Type[BaseModel] = ImageVisualizerInput
 
@@ -120,28 +100,26 @@ class ImageVisualizerTool(BaseTool):
             # Display image
             self._display_image(image_path, title, description, figsize, cmap)
 
-            return {
-                "status": "success",
-                "metadata": {
-                    "image_path": image_path,
-                    "displayed_with": {
-                        "title": bool(title),
-                        "description": bool(description),
-                        "figsize": figsize,
-                        "cmap": cmap,
-                    },
-                },
+            output = "Tool successfully displayed image."
+            metadata = {
+                "analysis_status": "completed",
+                "image_path": image_path,
+                "title": bool(title),
+                "description": bool(description),
+                "figsize": figsize,
+                "cmap": cmap,
             }
+            return output, metadata
 
         except Exception as e:
-            import traceback
-
-            return {
-                "status": "error",
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-                "metadata": {"image_path": image_path},
-            }
+            return (
+                {"error": str(e)},
+                {
+                    "image_path": image_path,
+                    "visualization_status": "failed",
+                    "note": "An error occurred during image visualization",
+                },
+            )
 
     async def _arun(
         self,
@@ -151,6 +129,6 @@ class ImageVisualizerTool(BaseTool):
         figsize: tuple = (10, 10),
         cmap: str = "rgb",
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> dict:
+    ) -> Tuple[Dict[str, any], Dict]:
         """Async version of _run."""
         return self._run(image_path, title, description, figsize, cmap)
