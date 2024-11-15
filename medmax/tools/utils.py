@@ -32,9 +32,9 @@ class ImageVisualizerTool(BaseTool):
 
     name: str = "image_visualizer"
     description: str = (
-        "Displays medical images to users with optional titles and descriptions. "
+        "Displays images to users with optional titles and descriptions. "
         "Input: Path to image file and optional display parameters. "
-        "Output: Information about the displayed image and visualization status."
+        "Output: Dict with image path and metadata."
     )
     args_schema: Type[BaseModel] = ImageVisualizerInput
 
@@ -98,16 +98,16 @@ class ImageVisualizerTool(BaseTool):
                 raise FileNotFoundError(f"Image file not found: {image_path}")
 
             # Display image
-            self._display_image(image_path, title, description, figsize, cmap)
+            # self._display_image(image_path, title, description, figsize, cmap)
 
-            output = "Tool successfully displayed image."
+            output = {"image_path": image_path}
             metadata = {
-                "analysis_status": "completed",
                 "image_path": image_path,
                 "title": bool(title),
                 "description": bool(description),
                 "figsize": figsize,
                 "cmap": cmap,
+                "analysis_status": "completed",
             }
             return output, metadata
 
