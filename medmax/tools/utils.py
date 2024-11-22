@@ -12,9 +12,9 @@ from langchain_core.tools import BaseTool
 
 
 class ImageVisualizerInput(BaseModel):
-    """Input schema for the Image Visualizer Tool."""
+    """Input schema for the Image Visualizer Tool. Only supports JPG or PNG images."""
 
-    image_path: str = Field(..., description="Path to the image file to display")
+    image_path: str = Field(..., description="Path to the image file to display, only supports JPG or PNG images")
     title: Optional[str] = Field(None, description="Optional title to display above the image")
     description: Optional[str] = Field(
         None, description="Optional description to display below the image"
