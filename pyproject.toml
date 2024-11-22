@@ -24,7 +24,7 @@ dependencies = [
     "pydantic>=1.8.0",
     "Pillow>=8.0.0",
     "torchxrayvision>=0.0.37",
-    "transformers==4.36.2",
+    "transformers>=4.36",
     "tokenizers>=0.10.0",
     "sentencepiece>=0.1.95",
     "shortuuid>=1.0.0",
@@ -52,6 +52,8 @@ dependencies = [
     "gradio>=5.0.0",
     "opencv-python>=4.8.0",
     "matplotlib>=3.8.0",
+    "diffusers>=0.20.0",
+    "pydicom>=2.3.0",
 ]
 
 [project.optional-dependencies]
