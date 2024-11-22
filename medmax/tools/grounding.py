@@ -16,11 +16,11 @@ from langchain_core.tools import BaseTool
 
 
 class XRayPhraseGroundingInput(BaseModel):
-    """Input schema for the XRay Phrase Grounding Tool."""
+    """Input schema for the XRay Phrase Grounding Tool. Only supports JPG or PNG images."""
     
     image_path: str = Field(
         ..., 
-        description="Path to the frontal chest X-ray image file"
+        description="Path to the frontal chest X-ray image file, only supports JPG or PNG images"
     )
     phrase: str = Field(
         ..., 
@@ -55,7 +55,7 @@ class XRayPhraseGroundingTool(BaseTool):
 
     def __init__(
         self,
-        model_id: str = "microsoft/maira-2",
+        model_path: str = "microsoft/maira-2",
         cache_dir: Optional[str] = None,
         temp_dir: Optional[str] = None,
         max_new_tokens: int = 250,
@@ -64,12 +64,12 @@ class XRayPhraseGroundingTool(BaseTool):
         super().__init__()
         
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_id,
+            model_path,
             cache_dir=cache_dir,
             trust_remote_code=True
         )
         self.processor = AutoProcessor.from_pretrained(
-            model_id,
+            model_path,
             cache_dir=cache_dir,
             trust_remote_code=True
         )
