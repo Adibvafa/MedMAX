@@ -21,9 +21,9 @@ from langchain_core.tools import BaseTool
 
 
 class ChestXRaySegmentationInput(BaseModel):
-    """Input schema for the Chest X-Ray Segmentation Tool."""
+    """Input schema for the Chest X-Ray Segmentation Tool. Only supports JPG or PNG images."""
 
-    image_path: str = Field(..., description="Path to the chest X-ray image file to be segmented")
+    image_path: str = Field(..., description="Path to the chest X-ray image file to be segmented, only supports JPG or PNG images")
 
 
 class OrganMetrics(BaseModel):

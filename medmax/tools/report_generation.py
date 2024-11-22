@@ -20,9 +20,9 @@ from transformers import (
 
 
 class ChestXRayInput(BaseModel):
-    """Input for chest X-ray analysis tools."""
+    """Input for chest X-ray analysis tools. Only supports JPG or PNG images."""
 
-    image_path: str = Field(..., description="Path to the radiology image file")
+    image_path: str = Field(..., description="Path to the radiology image file, only supports JPG or PNG images")
 
 
 class ChestXRayReportGeneratorTool(BaseTool):
