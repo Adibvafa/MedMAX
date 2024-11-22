@@ -24,10 +24,10 @@ from medmax.llava.constants import (
 
 
 class MedicalVisualQAInput(BaseModel):
-    """Input for the Medical Visual QA tool."""
+    """Input for the Medical Visual QA tool. Only supports JPG or PNG images."""
 
     question: str = Field(..., description="The question to ask about the medical image")
-    image_path: Optional[str] = Field(None, description="Path to the medical image file (optional)")
+    image_path: Optional[str] = Field(None, description="Path to the medical image file (optional), only supports JPG or PNG images")
 
 
 class MedicalVisualQATool(BaseTool):
