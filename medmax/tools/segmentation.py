@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import skimage.io
 import skimage.measure
 import skimage.transform
+import traceback
 
 from pydantic import BaseModel, Field
 from langchain_core.callbacks import (
@@ -21,9 +22,16 @@ from langchain_core.tools import BaseTool
 
 
 class ChestXRaySegmentationInput(BaseModel):
-    """Input schema for the Chest X-Ray Segmentation Tool. Only supports JPG or PNG images."""
+    """Input schema for the Chest X-Ray Segmentation Tool."""
 
-    image_path: str = Field(..., description="Path to the chest X-ray image file to be segmented, only supports JPG or PNG images")
+    image_path: str = Field(..., description="Path to the chest X-ray image file to be segmented")
+    organs: Optional[List[str]] = Field(
+        None,
+        description="List of organs to segment. If None, all available organs will be segmented. "
+        "Available organs: Left/Right Clavicle, Left/Right Scapula, Left/Right Lung, "
+        "Left/Right Hilus Pulmonis, Heart, Aorta, Facies Diaphragmatica, "
+        "Mediastinum, Weasand, Spine"
+    )
 
 
 class OrganMetrics(BaseModel):
@@ -54,34 +62,15 @@ class OrganMetrics(BaseModel):
 
 
 class ChestXRaySegmentationTool(BaseTool):
-    """Tool for performing detailed segmentation analysis of chest X-ray images.
-
-    This tool segments a chest X-ray image into its anatomical components and provides:
-    1. A visualization of all segmented organs saved as an image file
-    2. Comprehensive quantitative analysis for each detected organ
-
-    The tool analyzes 14 anatomical structures including lungs, heart, spine, and major vessels.
-    For each structure, it provides metrics on size, position, and intensity characteristics.
-
-    The output includes:
-    - Multi-panel visualization saved as image file
-    - Detailed metrics for each detected organ
-    - Processing metadata and analysis status
-
-    The tool integrates with torchxrayvision's PSPNet model for accurate medical image segmentation.
-    """
+    """Tool for performing detailed segmentation analysis of chest X-ray images."""
 
     name: str = "chest_xray_segmentation"
     description: str = (
-        "Segments chest X-ray images to 14 anatomical structures: "
-        "Left/Right Clavicle (collar bones), Left/Right Scapula (shoulder blades), Left/Right Lung, "
-        "Left/Right Hilus Pulmonis (lung roots), Heart, Aorta, Facies Diaphragmatica (diaphragm), "
-        "Mediastinum (central cavity), Weasand (esophagus), and Spine. "
-        "Generates visualization showing original X-ray and segmentation masks. "
-        "Returns segmentation image path and comprehensive metrics for each organ including size (area, dimensions), "
-        "position (centroid, bounding box), intensity statistics, and model confidence scores. "
-        "Input: Path to chest X-ray image. "
-        "Output: Dict with segmentation visualization path, per-organ metrics, and analysis metadata."
+        "Segments chest X-ray images to specified anatomical structures. "
+        "Available organs: Left/Right Clavicle (collar bones), Left/Right Scapula (shoulder blades), "
+        "Left/Right Lung, Left/Right Hilus Pulmonis (lung roots), Heart, Aorta, "
+        "Facies Diaphragmatica (diaphragm), Mediastinum (central cavity), Weasand (esophagus), "
+        "and Spine. Returns segmentation visualization and comprehensive metrics."
     )
     args_schema: Type[BaseModel] = ChestXRaySegmentationInput
 
@@ -89,6 +78,7 @@ class ChestXRaySegmentationTool(BaseTool):
     transform: Any = None
     pixel_spacing_mm: float = 0.5
     temp_dir: Path = Path("temp")
+    organ_map: Dict[str, int] = None
 
     def __init__(self):
         """Initialize the segmentation tool with model and temporary directory."""
@@ -101,10 +91,20 @@ class ChestXRaySegmentationTool(BaseTool):
         self.transform = torchvision.transforms.Compose(
             [xrv.datasets.XRayCenterCrop(), xrv.datasets.XRayResizer(512)]
         )
-
+        
         self.temp_dir = Path("temp") if Path("temp").exists() else Path(tempfile.mkdtemp())
-        if not self.temp_dir.exists():
-            print(f"Initialized segmentation tool with temp directory: {self.temp_dir}")
+        self.temp_dir.mkdir(exist_ok=True)
+        
+        # Map friendly names to model target indices
+        self.organ_map = {
+            "Left Clavicle": 0, "Right Clavicle": 1,
+            "Left Scapula": 2, "Right Scapula": 3,
+            "Left Lung": 4, "Right Lung": 5,
+            "Left Hilus Pulmonis": 6, "Right Hilus Pulmonis": 7,
+            "Heart": 8, "Aorta": 9,
+            "Facies Diaphragmatica": 10, "Mediastinum": 11,
+            "Weasand": 12, "Spine": 13
+        }
 
     def _compute_organ_metrics(
         self, mask: np.ndarray, original_img: np.ndarray, confidence: float
@@ -152,44 +152,71 @@ class ChestXRaySegmentationTool(BaseTool):
         )
 
     def _save_visualization(
-        self, original_img: np.ndarray, pred_masks: torch.Tensor, organ_names: List[str]
+        self, original_img: np.ndarray, pred_masks: torch.Tensor, organ_indices: List[int]
     ) -> str:
-        """Save visualization of original image and all segmentation masks."""
-        n_organs = len(organ_names)
-        n_cols = 5
-        n_rows = (n_organs + 2) // n_cols
-
-        plt.figure(figsize=(20, 5 * n_rows))
-
-        # Plot original image
-        plt.subplot(n_rows, n_cols, 1)
-        plt.imshow(original_img, cmap="gray")
-        plt.title("Original Image")
+        """Save visualization of original image with segmentation masks overlaid."""
+        # Initialize plot and base image
+        plt.figure(figsize=(10, 10))
+        plt.imshow(original_img, cmap='gray', extent=[0, original_img.shape[1], original_img.shape[0], 0])
+        
+        # Generate color palette for organs
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(organ_indices)))
+        
+        # Process and overlay each organ mask
+        for idx, (organ_idx, color) in enumerate(zip(organ_indices, colors)):
+            mask = pred_masks[0, organ_idx].cpu().numpy()
+            if mask.sum() > 0:
+                # Resize mask if dimensions don't match
+                if mask.shape != original_img.shape:
+                    mask = skimage.transform.resize(
+                        mask, 
+                        original_img.shape, 
+                        order=0, 
+                        preserve_range=True, 
+                        anti_aliasing=False
+                    )
+                
+                # Apply semi-transparent colored overlay
+                colored_mask = np.zeros((*original_img.shape, 4))
+                colored_mask[mask > 0] = (*color[:3], 0.3)
+                plt.imshow(colored_mask, extent=[0, original_img.shape[1], original_img.shape[0], 0])
+                
+                # Add legend entry for organ
+                organ_name = list(self.organ_map.keys())[list(self.organ_map.values()).index(organ_idx)]
+                plt.plot([], [], color=color, label=organ_name, linewidth=3)
+        
+        # Finalize and save plot
+        plt.title("Segmentation Overlay")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.axis("off")
-
-        # Plot each organ mask
-        for i, organ_name in enumerate(organ_names):
-            plt.subplot(n_rows, n_cols, i + 2)
-            plt.imshow(pred_masks[0, i].cpu().numpy())
-            plt.title(organ_name)
-            plt.axis("off")
-
-        plt.tight_layout(pad=2)
-
-        # Save figure
+        
         save_path = self.temp_dir / f"segmentation_{uuid.uuid4().hex[:8]}.png"
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
         plt.close()
-
+        
         return str(save_path)
 
     def _run(
         self,
         image_path: str,
+        organs: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
-        """Run segmentation analysis and save visualization."""
+        """Run segmentation analysis for specified organs."""
         try:
+            # Validate and get organ indices
+            if organs:
+                # Normalize organ names and validate
+                organs = [o.strip() for o in organs]
+                invalid_organs = [o for o in organs if o not in self.organ_map]
+                if invalid_organs:
+                    raise ValueError(f"Invalid organs specified: {invalid_organs}")
+                organ_indices = [self.organ_map[o] for o in organs]
+            else:
+                # Use all organs if none specified
+                organ_indices = list(self.organ_map.values())
+                organs = list(self.organ_map.keys())
+
             # Load and process image
             original_img = skimage.io.imread(image_path)
             if len(original_img.shape) > 2:
@@ -207,16 +234,15 @@ class ChestXRaySegmentationTool(BaseTool):
             with torch.no_grad():
                 pred = self.model(img)
 
-            # Apply sigmoid and thresholding
             pred_probs = torch.sigmoid(pred)
             pred_masks = (pred_probs > 0.5).float()
 
             # Save visualization
-            viz_path = self._save_visualization(original_img, pred_masks, self.model.targets)
+            viz_path = self._save_visualization(original_img, pred_masks, organ_indices)
 
-            # Compute metrics
+            # Compute metrics for selected organs
             results = {}
-            for idx, organ_name in enumerate(self.model.targets):
+            for idx, organ_name in zip(organ_indices, organs):
                 mask = pred_masks[0, idx].cpu().numpy()
                 if mask.sum() > 0:
                     metrics = self._compute_organ_metrics(
@@ -225,19 +251,18 @@ class ChestXRaySegmentationTool(BaseTool):
                     if metrics:
                         results[organ_name] = metrics
 
-            # Main output dictionary
             output = {
                 "segmentation_image_path": viz_path,
                 "metrics": {organ: metrics.dict() for organ, metrics in results.items()},
             }
 
-            # Metadata dictionary
             metadata = {
                 "image_path": image_path,
                 "segmentation_image_path": viz_path,
                 "original_size": original_img.shape,
                 "model_size": tuple(img.shape[-2:]),
                 "pixel_spacing_mm": self.pixel_spacing_mm,
+                "requested_organs": organs,
                 "processed_organs": list(results.keys()),
                 "analysis_status": "completed",
             }
@@ -245,8 +270,6 @@ class ChestXRaySegmentationTool(BaseTool):
             return output, metadata
 
         except Exception as e:
-            import traceback
-
             error_output = {"error": str(e)}
             error_metadata = {
                 "image_path": image_path,
@@ -258,7 +281,8 @@ class ChestXRaySegmentationTool(BaseTool):
     async def _arun(
         self,
         image_path: str,
+        organs: Optional[List[str]] = None,
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Async version of _run."""
-        return self._run(image_path)
+        return self._run(image_path, organs)
