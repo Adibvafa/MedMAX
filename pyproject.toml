@@ -54,6 +54,7 @@ dependencies = [
     "matplotlib>=3.8.0",
     "diffusers>=0.20.0",
     "pydicom>=2.3.0",
+    "jupyter>=1.0.0",
 ]
 
 [project.optional-dependencies]
