@@ -164,3 +164,11 @@ cython_debug/
 # ruff
 ruff-cache/
 .ruff_cache/
+
+afallah/
+
+logs/
+
+temp/
+
+.gradio/

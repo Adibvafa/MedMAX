@@ -42,31 +42,49 @@ class ChatInterface:
         
         return self.display_file_path
 
+    def add_message(self, message, display_image, history):
+        image_path = self.original_file_path or display_image
+        if image_path is not None:
+            history.append({"role": "user", "content": {"path": image_path}})
+        if message is not None:
+            history.append({"role": "user", "content": message})
+        return history, gr.Textbox(value=message, interactive=False)
+
     async def process_message(self, 
                         message: str, 
                         display_image: Optional[str], 
-                        chat_history: List[ChatMessage]) -> List[ChatMessage]:
+                        chat_history: List[ChatMessage]):
         chat_history = chat_history or []
         
-        # Use original file path if available, otherwise use display image path
-        image_path = self.original_file_path or display_image
-        if image_path:
-            message = f"{message} `{image_path}`"
+        # # Use original file path if available, otherwise use display image path
+        # image_path = self.original_file_path or display_image
+        # if image_path:
+        #     message = f"{message} `{image_path}`"
         
-        # Use original file path for LLM prompt
-        if self.original_file_path:
-            message = f"{message} `{self.original_file_path}`"
+        # # Use original file path for LLM prompt
+        # if self.original_file_path:
+        #     message = f"{message} `{self.original_file_path}`"
         
+
+        
+        # chat_history.append(ChatMessage(role="user", content=message))
+        # yield chat_history, self.display_file_path
+        
+
         # Initialize thread if needed
         if not self.current_thread_id:
             self.current_thread_id = str(time.time())
-        
-        chat_history.append(ChatMessage(role="user", content=message))
-        yield chat_history, self.display_file_path
-        
+
+        messages = []
+        image_path = self.original_file_path or display_image
+        if image_path is not None:
+            messages.append({"role": "user", "content": f"path: {image_path}"})
+        if message is not None:
+            messages.append({"role": "user", "content": message})
+
         try:
             for event in self.agent.workflow.stream(
-                {"messages": [{"role": "user", "content": message}]},
+                {"messages": messages},
                 {"configurable": {"thread_id": self.current_thread_id}}
             ):
                 if isinstance(event, dict):
@@ -87,15 +105,26 @@ class ChatInterface:
                             # For image_visualizer, use display path
                             if tool_name == "image_visualizer":
                                 self.display_file_path = tool_result['image_path']
-                            
-                            if tool_result:
-                                formatted_result = ' '.join(line.strip() for line in str(tool_result).splitlines()).strip()
+                                metadata={
+                                    "title": f"🖼️ Image from tool: {tool_name}"
+                                }
+
+                                if tool_result:
+                                    formatted_result = ' '.join(line.strip() for line in str(tool_result).splitlines()).strip()
+                                    metadata["description"] = formatted_result
+                                    chat_history.append(ChatMessage(
+                                        role="assistant",
+                                        content=formatted_result,
+                                        metadata=metadata,
+                                    ))
                                 chat_history.append(ChatMessage(
                                     role="assistant",
-                                    content=formatted_result,
-                                    metadata={"title": f"🔧 Using tool: {tool_name}"},
-                                ))
-                                yield chat_history, self.display_file_path
+                                    # content=gr.Image(value=self.display_file_path),  
+                                    content = {"path": self.display_file_path},
+                                    )
+                                )
+
+                                yield  chat_history, self.display_file_path
                             
         except Exception as e:
             chat_history.append(ChatMessage(
@@ -169,11 +198,16 @@ def create_demo(agent, tools_dict):
             return interface.handle_upload(file.name)
 
         chat_msg = txt.submit(
+            interface.add_message,
+            inputs=[txt, image_display, chatbot],
+            outputs=[chatbot, txt]
+        )
+        bot_msg = chat_msg.then(
             interface.process_message,
             inputs=[txt, image_display, chatbot],
             outputs=[chatbot, image_display]
         )
-        bot_msg = chat_msg.then(
+        bot_msg.then(
             lambda: gr.Textbox(interactive=True),
             None,
             [txt]
