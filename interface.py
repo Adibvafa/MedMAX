@@ -90,21 +90,21 @@ class ChatInterface:
                             tool_name = message.name
                             tool_result = eval(message.content)[0]
                             
-                            # For image_visualizer, use display path
-                            if tool_name == "image_visualizer":
-                                self.display_file_path = tool_result['image_path']
+                            if tool_result:
                                 metadata={
                                     "title": f"🖼️ Image from tool: {tool_name}"
                                 }
-
-                                if tool_result:
-                                    formatted_result = ' '.join(line.strip() for line in str(tool_result).splitlines()).strip()
-                                    metadata["description"] = formatted_result
-                                    chat_history.append(ChatMessage(
-                                        role="assistant",
-                                        content=formatted_result,
-                                        metadata=metadata,
-                                    ))
+                                formatted_result = ' '.join(line.strip() for line in str(tool_result).splitlines()).strip()
+                                metadata["description"] = formatted_result
+                                chat_history.append(ChatMessage(
+                                    role="assistant",
+                                    content=formatted_result,
+                                    metadata=metadata,
+                                ))
+                                
+                            # For image_visualizer, use display path
+                            if tool_name == "image_visualizer":
+                                self.display_file_path = tool_result['image_path']
                                 chat_history.append(ChatMessage(
                                     role="assistant",
                                     # content=gr.Image(value=self.display_file_path),  
@@ -112,7 +112,7 @@ class ChatInterface:
                                     )
                                 )
 
-                                yield  chat_history, self.display_file_path, ""
+                            yield  chat_history, self.display_file_path, ""
                             
         except Exception as e:
             chat_history.append(ChatMessage(
@@ -256,6 +256,7 @@ def create_demo(agent, tools_dict):
             inputs=[txt, image_display, chatbot],
             outputs=[chatbot, image_display, txt]
         )
+        bot_msg.then(lambda: gr.Textbox(interactive=True), None, [txt])
 
 
         upload_button.upload(
