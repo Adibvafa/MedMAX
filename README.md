@@ -15,6 +15,7 @@ Our comprehensive toolset includes:
 - **ChestXRayReportGenerator**: Generates detailed, accurate medical reports from X-ray images
 - **ChestXRayClassifier**: Analyzes images for 18 different pathologies providing probability scores for each condition
 - **ChestXRaySegmentation**: Precisely segments anatomical structures
+- **MedicalVisualQA**: Answers to complex visual medical queries
 - **XRayPhraseGrounding**: Locates and visualizes specific medical findings in X-rays with bounding box precision
 - **ImageVisualizer**: Enhances and displays X-ray images for optimal viewing
 - **ChestXRayGenerator**: Generates synthetic chest X-rays for educational purposes
