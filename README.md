@@ -70,7 +70,7 @@ python main.py
 ```
 <br>
 
-## Contributors
+## Developers
 - Adibvafa Fallahpour
 - Jun Ma
 - Hongwei Lyu
