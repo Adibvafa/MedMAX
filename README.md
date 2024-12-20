@@ -1,5 +1,5 @@
 <h1 align="center">
-MedMAX: Medical Multimodal Agent for X-ray 🏥
+🤖 MedMAX: Medical Multimodal Agent for X-ray 🏥
 </h1>
 <br>
 
