@@ -64,14 +64,10 @@ echo "OPENAI_API_KEY=your_key_here" > .env
 ```
 
 ### Running the Application
-1. Start the application:
+Start the application:
 ```bash
 python main.py
 ```
-
-2. Open the provided Gradio interface link in your browser
-3. Upload an X-ray image (supports both DICOM and standard formats)
-4. Interact naturally with the agent through the chat interface
 <br>
 
 ## Contributors
