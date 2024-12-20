@@ -13,8 +13,8 @@ MedMAX is an intelligent medical assistant that seamlessly integrates an LLM wit
 
 Our comprehensive toolset includes:
 - **ChestXRayReportGenerator**: Generates detailed, accurate medical reports from X-ray images
-- **ChestXRayClassifier**: Analyzes images for 18 different pathologies including Atelectasis, Cardiomegaly, Consolidation, Edema, Effusion, and more, providing probability scores for each condition
-- **ChestXRaySegmentation**: Precisely segments anatomical structures including Left/Right Clavicle, Lungs, Heart, Aorta, and Spine
+- **ChestXRayClassifier**: Analyzes images for 18 different pathologies providing probability scores for each condition
+- **ChestXRaySegmentation**: Precisely segments anatomical structures
 - **XRayPhraseGrounding**: Locates and visualizes specific medical findings in X-rays with bounding box precision
 - **ImageVisualizer**: Enhances and displays X-ray images for optimal viewing
 - **ChestXRayGenerator**: Generates synthetic chest X-rays for educational purposes
